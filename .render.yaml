@@ -3,7 +3,7 @@ services:
     name: medication-adherence-api
     env: python
     buildCommand: ""
-    startCommand: "python app.py"
+    startCommand: "python random_forest_api.py"
     plan: free
     envVars:
       - key: FLASK_ENV
