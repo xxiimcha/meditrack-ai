@@ -1,0 +1,27 @@
+{
+  "best_params": {
+    "max_depth": null,
+    "min_samples_leaf": 2,
+    "min_samples_split": 5,
+    "n_estimators": 50
+  },
+  "accuracy": 0.505,
+  "f1_score": 0.5075,
+  "confusion_matrix": [
+    [
+      50,
+      39
+    ],
+    [
+      60,
+      51
+    ]
+  ],
+  "feature_importance": {
+    "Age": 0.636204930670813,
+    "Gender": 0.09430581690131178,
+    "Condition": 0.13328211066981316,
+    "Medication": 0.13620714175806223
+  },
+  "random_seed": 272
+}
