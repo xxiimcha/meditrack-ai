@@ -16,6 +16,9 @@ from dotenv import load_dotenv
 import random
 from collections import defaultdict
 from flask import render_template_string
+import csv
+from io import StringIO
+from flask import Response
 
 load_dotenv()
 
@@ -260,6 +263,118 @@ def check_intake_status():
         return jsonify(get_intake_status_for_user(user_id))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route("/generate_csv", methods=["GET"])
+def generate_csv():
+    try:
+        all_data = []
+        users = db.collection("users").stream()
+
+        for user in users:
+            user_id = user.id
+            schedules = db.collection("medication_schedules").where("user_id", "==", user_id).stream()
+
+            for schedule in schedules:
+                sched_data = schedule.to_dict()
+                if not all(k in sched_data for k in ['start_date', 'until_date', 'first_intake_time']):
+                    continue  # skip incomplete schedules
+
+                if sched_data['start_date'] is None or sched_data['until_date'] is None:
+                    continue
+
+                med_name = sched_data.get("medication_name", "Unknown")
+                try:
+                    start = sched_data['start_date'].replace(tzinfo=None)
+                    end = sched_data['until_date'].replace(tzinfo=None)
+                    first_time = datetime.datetime.strptime(sched_data['first_intake_time'], "%H:%M").time()
+                except Exception as e:
+                    continue  # skip problematic datetime fields
+
+                # Handle frequency
+                freq_raw = sched_data.get('frequency')
+                freq_map = {
+                    "once a day": 1,
+                    "twice a day": 2,
+                    "three times a day": 3,
+                    "four times a day": 4
+                }
+                if freq_raw is None:
+                    freq = 1
+                elif isinstance(freq_raw, str):
+                    freq = freq_map.get(freq_raw.strip().lower(), 1)
+                else:
+                    try:
+                        freq = int(freq_raw)
+                    except (ValueError, TypeError):
+                        freq = 1
+
+                # Handle interval_per_hour
+                interval_raw = sched_data.get("interval_per_hour")
+                try:
+                    interval_hr = int(interval_raw)
+                except (ValueError, TypeError):
+                    interval_hr = 8
+
+                schedule_id = schedule.id
+
+                expected_intakes = []
+                for day in range((end - start).days + 1):
+                    base_date = start.date() + datetime.timedelta(days=day)
+                    base_datetime = datetime.datetime.combine(base_date, first_time)
+                    for i in range(freq):
+                        expected_intakes.append(base_datetime + datetime.timedelta(hours=interval_hr * i))
+
+                intake_docs = db.collection("medication_schedules").document(schedule_id).collection("medication_intakes").stream()
+                taken_logs = []
+                for doc in intake_docs:
+                    doc_data = doc.to_dict()
+                    taken_at = doc_data.get("taken_at")
+                    if taken_at:
+                        taken_logs.append(doc_data)
+
+                taken_times = [log["taken_at"].replace(tzinfo=None) for log in taken_logs]
+
+                # Tally actual taken count per expected
+                actual_taken_count = 0
+
+                for expected in expected_intakes:
+                    status = "Missed"
+                    actual_time = ""
+                    time_diff_min = ""
+
+                    for log in taken_logs:
+                        taken_time = log["taken_at"].replace(tzinfo=None)
+                        if abs((expected - taken_time).total_seconds()) <= 3600:
+                            actual_time = taken_time.isoformat()
+                            time_diff_min = int((taken_time - expected).total_seconds() / 60)
+                            status = "Taken" if log.get("medication_name", "") == med_name else "Wrong Medication"
+                            if status == "Taken":
+                                actual_taken_count += 1
+                            break
+
+                    all_data.append({
+                        "User ID": user.id,
+                        "Medication": med_name,
+                        "Expected Time": expected.isoformat(),
+                        "Actual Time": actual_time,
+                        "Time Difference (mins)": time_diff_min,
+                        "Status": status,
+                        "Scheduled Doses": len(expected_intakes),
+                        "Actual Doses Taken": actual_taken_count
+                    })
+
+
+        df = pd.DataFrame(all_data)
+        csv_data = df.to_csv(index=False)
+
+        return Response(
+            csv_data,
+            mimetype="text/csv",
+            headers={"Content-disposition": "attachment; filename=medication_intake_report.csv"}
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     print("🚀 Starting Flask server at", datetime.datetime.now())

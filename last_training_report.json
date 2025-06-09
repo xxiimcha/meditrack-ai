@@ -5,23 +5,23 @@
     "min_samples_split": 5,
     "n_estimators": 50
   },
-  "accuracy": 0.505,
-  "f1_score": 0.5075,
+  "accuracy": 0.53,
+  "f1_score": 0.5347,
   "confusion_matrix": [
     [
-      50,
-      39
+      52,
+      52
     ],
     [
-      60,
-      51
+      42,
+      54
     ]
   ],
   "feature_importance": {
-    "Age": 0.636204930670813,
-    "Gender": 0.09430581690131178,
-    "Condition": 0.13328211066981316,
-    "Medication": 0.13620714175806223
+    "Age": 0.6304183389035075,
+    "Gender": 0.09815468929573923,
+    "Condition": 0.13551258031558827,
+    "Medication": 0.13591439148516504
   },
-  "random_seed": 272
+  "random_seed": 5496
 }
