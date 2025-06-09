@@ -181,10 +181,16 @@ def get_intake_status_for_user(user_id):
         med_name = data['medication_name']
         schedule_id = schedule.id
         expected_intakes = []
+        
+        first_time = datetime.datetime.strptime(data['first_intake_time'], "%H:%M").time()
+
         for day in range((end - start).days + 1):
-            base = start + datetime.timedelta(days=day)
+            base_date = start.date() + datetime.timedelta(days=day)
+            base_datetime = datetime.datetime.combine(base_date, first_time)
+
             for i in range(freq):
-                expected_intakes.append(base + datetime.timedelta(hours=interval_hr * i))
+                intake_time = base_datetime + datetime.timedelta(hours=interval_hr * i)
+                expected_intakes.append(intake_time)
 
         intake_docs = db.collection("medication_schedules").document(schedule_id).collection("medication_intakes").stream()
         taken_logs = sorted([doc.to_dict() for doc in intake_docs if "taken_at" in doc.to_dict()], key=lambda x: x["taken_at"])
